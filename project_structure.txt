@@ -1,0 +1,25 @@
+crypto-bot/
+├── Cargo.toml
+|── Cargo.lock
+└── src/
+    ├── main.rs              # app entrypoint (config + start)
+    |── models/
+    |   |── mod.rs
+    |   |── orderbook.rs 
+    ├── config.rs            # load API keys, symbols, etc.
+    ├── ws/                  # WebSocket module
+    │   ├── mod.rs           # public interface (connect, subscribe)
+    │   ├── client.rs        # connection & subscription handling
+    │   └── handlers.rs      # message parsing, dispatch
+    ├── orderbook/           
+    │   ├── mod.rs           # public orderbook API
+    │   |
+    │   └── state.rs         # apply snapshot/deltas, best bid/ask
+    ├── strategy/            # trading/analytics logic
+    │   ├── mod.rs           # defines Strategy trait
+    │   └── example.rs       # example implementation (mid-price calc, moving avg, etc.)
+    ├── execution/           # later: trade placement logic
+    │   └── bybit.rs
+    ├── storage/             # optional: save to DB/file for backtesting
+    │   └── sqlite.rs
+    └── logger.rs            
