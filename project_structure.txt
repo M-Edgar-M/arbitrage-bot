@@ -22,4 +22,5 @@ crypto-bot/
     │   └── bybit.rs
     ├── storage/             # optional: save to DB/file for backtesting
     │   └── sqlite.rs
+    ├── constants.rs
     └── logger.rs            

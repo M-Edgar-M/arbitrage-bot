@@ -1,42 +1,27 @@
+use crate::constants::pairs;
+
+mod constants;
 mod logger;
 mod models;
 mod ws;
 
 #[tokio::main]
 async fn main() {
-    // let url: &str = "wss://stream.bybit.com/v5/public/spot";
+    let bybit_btc_usdt = pairs::BTC_USDT_BYBIT;
+    ws::client::run_orderbook_stream_bybit(bybit_btc_usdt).await
+    // ws::binance_client::run_orderbook_stream_binance("btcusdt").await
 
-    // println!("Connecting to {}", url);
+    // Run the Bybit client for BTCUSDT
+    // tokio::spawn(async move {
+    //     bybit_client::run_orderbook_stream("BTCUSDT").await;
+    // });
 
-    // let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
-    // println!("✅ WebSocket handshake completed");
+    // Run the Binance client for BTCUSDT
+    // tokio::spawn(async move {
+    //     binance_client::run_orderbook_stream("btcusdt").await;
+    // });
 
-    // let (mut write, mut read) = ws_stream.split();
-
-    // // Subscribe to BTCUSDT orderbook depth 25
-    // let subscribe_msg = json!({
-    //     "op": "subscribe",
-    //     // "args": ["orderbook.1.BTCUSDT"]
-    //      "args": ["orderbook.1.SOLUSDT"]
-    // })
-    // .to_string();
-
-    // write
-    //     .send(Message::Text(subscribe_msg.into()))
-    //     .await
-    //     .expect("Failed to send subscribe message");
-
-    // println!("📡 Subscribed to BTCUSDT orderbook");
-
-    // while let Some(msg) = read.next().await {
-    //     let msg = msg.expect("Failed to read message");
-
-    //     if let Message::Text(txt) = msg {
-    //         // Print raw message for now
-    //         println!("Received: {}", txt);
-
-    //         // Later: parse JSON and extract best bid/ask
-    //     }
-    // }
-    ws::client::run_orderbook_stream("BTCUSDT").await
+    // Keep the main thread alive
+    // tokio::signal::ctrl_c().await.unwrap();
+    // println!("Ctrl+C received, shutting down...");
 }

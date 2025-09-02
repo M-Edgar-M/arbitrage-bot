@@ -4,7 +4,7 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::{logger, models::orderbook::OrderBookMsg};
 
-pub async fn run_orderbook_stream(symbol: &str) {
+pub async fn run_orderbook_stream_bybit(symbol: &str) {
     let url = "wss://stream.bybit.com/v5/public/spot";
     println!("🔌 Connecting to {}", url);
 
