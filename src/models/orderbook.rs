@@ -1,13 +1,14 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::io::Write;
-use std::{collections::HashMap, fs::OpenOptions};
+use std::collections::HashMap;
+
+use crate::logger::CsvLogger;
 
 #[derive(Debug, Deserialize)]
 pub struct OrderBookMsg {
     pub topic: String,
     #[serde(rename = "type")]
-    pub msg_type: String,
+    pub _msg_type: String,
     pub data: OrderBookData,
 }
 
@@ -90,57 +91,6 @@ impl Comparator {
     }
 }
 
-pub struct CsvLogger {
-    path: String,
-}
-
-impl CsvLogger {
-    pub fn new(path: &str) -> Self {
-        let mut file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)
-            .unwrap();
-
-        // Write header if file is empty
-        use std::io::Seek;
-        if file.seek(std::io::SeekFrom::End(0)).unwrap() == 0 {
-            writeln!(
-                file,
-                "symbol,exchange_a,exchange_b,bid_a,ask_a,mid_a,bid_b,ask_b,mid_b,diff_percent,timestamp"
-            ).unwrap();
-        }
-
-        Self {
-            path: path.to_string(),
-        }
-    }
-
-    pub fn log(&self, a: &MarketSnapshot, b: &MarketSnapshot, diff: f64) {
-        let mut file = OpenOptions::new().append(true).open(&self.path).unwrap();
-
-        let line = format!(
-            "{},{},{},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2}%,{}",
-            a.symbol,
-            a.exchange,
-            b.exchange,
-            a.bid,
-            a.ask,
-            a.mid,
-            b.bid,
-            b.ask,
-            b.mid,
-            diff * 100.0,
-            a.timestamp
-        );
-
-        writeln!(file, "{}", line).unwrap();
-
-        // also print it to console
-        println!("{}", line);
-    }
-}
-
 pub struct MarketTracker {
     data: HashMap<String, Vec<MarketSnapshot>>,
     comparator: Comparator,
@@ -158,11 +108,12 @@ impl MarketTracker {
 
     pub fn update(&mut self, exchange: &str, symbol: &str, bid: f64, ask: f64) {
         let snapshot = MarketSnapshot::new(exchange, symbol, bid, ask);
-        let entry = self.data.entry(symbol.to_string()).or_insert_with(Vec::new);
+        let entry: &mut Vec<MarketSnapshot> =
+            self.data.entry(symbol.to_string()).or_insert_with(Vec::new);
         entry.push(snapshot);
 
         // Compare whenever we get a new update
-        let results = self.comparator.compare(entry);
+        let results: Vec<(MarketSnapshot, MarketSnapshot, f64)> = self.comparator.compare(entry);
         for (a, b, diff) in results {
             self.logger.log(&a, &b, diff);
         }
