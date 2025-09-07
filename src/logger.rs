@@ -80,6 +80,6 @@ impl CsvLogger {
         writeln!(file, "{}", line).unwrap();
 
         // also print it to console
-        println!("{}", line);
+        // println!("After write file::{}", line);
     }
 }

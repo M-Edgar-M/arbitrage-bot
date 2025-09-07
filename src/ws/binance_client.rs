@@ -36,22 +36,31 @@ pub async fn run_orderbook_stream_binance(symbol: &str, tracker: Arc<Mutex<Marke
 
     while let Some(msg) = read.next().await {
         let msg = msg.unwrap();
-        if let Message::Text(txt) = msg {
-            if let Ok(parsed) = from_str::<BinanceOrderBookMsg>(&txt) {
-                if let (Some(bid), Some(ask)) = (parsed.bids.get(0), parsed.asks.get(0)) {
-                    let bid_price: f64 = bid[0].parse().unwrap_or(0.0);
-                    let ask_price: f64 = ask[0].parse().unwrap_or(0.0);
+        match msg {
+            Message::Text(txt) => {
+                if let Ok(parsed) = from_str::<BinanceOrderBookMsg>(&txt) {
+                    if let (Some(bid), Some(ask)) = (parsed.bids.get(0), parsed.asks.get(0)) {
+                        let bid_price: f64 = bid[0].parse().unwrap_or(0.0);
+                        let ask_price: f64 = ask[0].parse().unwrap_or(0.0);
 
-                    //update the tracker
-                    let mut tracker = tracker.lock().await;
-                    tracker.update(
-                        exchange_names::BINANCE,
-                        &parsed.symbol,
-                        bid_price,
-                        ask_price,
-                    );
+                        //update the tracker
+                        let mut tracker = tracker.lock().await;
+                        tracker.update(
+                            exchange_names::BINANCE,
+                            &parsed.symbol,
+                            bid_price,
+                            ask_price,
+                        );
+                    }
                 }
             }
+            // Add a case to handle Ping messages
+            Message::Ping(data) => {
+                println!("Got a ping, sending a pong!");
+                write.send(Message::Pong(data)).await.unwrap();
+            }
+            // Handle other message types if necessary
+            _ => {}
         }
     }
 }

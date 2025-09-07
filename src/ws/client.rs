@@ -1,8 +1,8 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use futures_util::{SinkExt, StreamExt};
 use serde_json::from_str;
-use tokio::sync::Mutex;
+use tokio::{sync::Mutex, time::interval};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::{
@@ -32,17 +32,51 @@ pub async fn run_orderbook_stream_bybit(symbol: &str, tracker: Arc<Mutex<MarketT
         .unwrap();
     println!("📡 Subscribed to {} orderbook", symbol);
 
-    while let Some(msg) = read.next().await {
-        let msg = msg.unwrap();
-        if let Message::Text(txt) = msg {
-            if let Ok(parsed) = from_str::<OrderBookMsg>(&txt) {
-                if let (Some(bid), Some(ask)) = (parsed.data.b.get(0), parsed.data.a.get(0)) {
-                    let bid_price: f64 = bid[0].parse().unwrap_or(0.0);
-                    let ask_price: f64 = ask[0].parse().unwrap_or(0.0);
+    // Create a periodic interval for sending pings
+    let mut ping_interval = interval(Duration::from_secs(20));
 
-                    // update the tracker
-                    let mut tracker = tracker.lock().await;
-                    tracker.update(exchange_names::BYBIT, &parsed.data.s, bid_price, ask_price);
+    // We'll use a `select` to handle both incoming messages and our ping timer
+    loop {
+        tokio::select! {
+            // This arm handles incoming messages from the WebSocket
+            msg = read.next() => {
+                let msg = match msg {
+                    Some(Ok(msg)) => msg,
+                    _ => {
+                        println!("Connection closed or error.");
+                        break;
+                    }
+                };
+                match msg {
+                    Message::Text(txt) => {
+                        if let Ok(parsed) = from_str::<OrderBookMsg>(&txt) {
+                            if let (Some(bid), Some(ask)) = (parsed.data.b.get(0), parsed.data.a.get(0)) {
+                                let bid_price: f64 = bid[0].parse().unwrap_or(0.0);
+                                let ask_price: f64 = ask[0].parse().unwrap_or(0.0);
+
+                                // update the tracker
+                                let mut tracker = tracker.lock().await;
+                                tracker.update(exchange_names::BYBIT, &parsed.data.s, bid_price, ask_price);
+                            }
+                        }
+                    },
+                    // Handle ping frames sent by the server
+                    Message::Ping(data) => {
+                        println!("Ping received from server, sending pong back.");
+                        if let Err(e) = write.send(Message::Pong(data)).await {
+                            eprintln!("Error sending pong: {:?}", e);
+                            break;
+                        }
+                    },
+                    _ => {}
+                }
+            },
+            // This arm handles our periodic client-side pings
+            _ = ping_interval.tick() => {
+                println!("Sending client-side ping.");
+                if let Err(e) = write.send(Message::Ping(vec![].into())).await {
+                    eprintln!("Error sending ping: {:?}", e);
+                    break;
                 }
             }
         }

@@ -58,16 +58,20 @@ impl MarketSnapshot {
 
 pub struct Comparator {
     pub threshold: f64, // e.g., 0.1 = 10%
+    pub biggest_diff: f64,
 }
 
 impl Comparator {
     pub fn new(threshold: f64) -> Self {
-        Self { threshold }
+        Self {
+            threshold,
+            biggest_diff: 0.0,
+        }
     }
 
     /// Compare snapshots only across *different exchanges*
     pub fn compare(
-        &self,
+        &mut self,
         snapshots: &[MarketSnapshot],
     ) -> Vec<(MarketSnapshot, MarketSnapshot, f64)> {
         let mut results = Vec::new();
@@ -81,7 +85,8 @@ impl Comparator {
                 // calculate difference (mid of a vs ask of b)
                 let diff = ((a.mid - b.ask).abs() / a.mid * 100000.0).round() / 100000.0;
 
-                if diff >= self.threshold {
+                if diff > self.biggest_diff && diff >= self.threshold {
+                    self.biggest_diff = diff;
                     results.push((a.clone(), b.clone(), diff));
                 }
             }
