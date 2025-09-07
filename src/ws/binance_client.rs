@@ -1,13 +1,15 @@
 use futures_util::{SinkExt, StreamExt};
-// use serde::{Deserialize, Serialize};
 use serde_json::from_str;
-// use std::fmt;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
-use crate::{logger::log_binance_orderbook, models::orderbook::BinanceOrderBookMsg};
+use crate::{
+    constants::exchange_names,
+    models::orderbook::{BinanceOrderBookMsg, MarketTracker},
+};
 
-pub async fn run_orderbook_stream_binance(symbol: &str) {
-    // Base URL for Binance Spot WebSocket streams
+pub async fn run_orderbook_stream_binance(symbol: &str, tracker: Arc<Mutex<MarketTracker>>) {
     let url = "wss://stream.binance.com:9443/ws";
     println!("🔌 Connecting to {}", url);
 
@@ -36,7 +38,19 @@ pub async fn run_orderbook_stream_binance(symbol: &str) {
         let msg = msg.unwrap();
         if let Message::Text(txt) = msg {
             if let Ok(parsed) = from_str::<BinanceOrderBookMsg>(&txt) {
-                log_binance_orderbook(&parsed);
+                if let (Some(bid), Some(ask)) = (parsed.bids.get(0), parsed.asks.get(0)) {
+                    let bid_price: f64 = bid[0].parse().unwrap_or(0.0);
+                    let ask_price: f64 = ask[0].parse().unwrap_or(0.0);
+
+                    //update the tracker
+                    let mut tracker = tracker.lock().await;
+                    tracker.update(
+                        exchange_names::BINANCE,
+                        &parsed.symbol,
+                        bid_price,
+                        ask_price,
+                    );
+                }
             }
         }
     }

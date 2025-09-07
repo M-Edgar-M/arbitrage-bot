@@ -6,7 +6,8 @@ use tokio::sync::Mutex;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::{
-    logger,
+    constants::exchange_names,
+    // logger,
     models::orderbook::{MarketTracker, OrderBookMsg},
 };
 
@@ -41,11 +42,9 @@ pub async fn run_orderbook_stream_bybit(symbol: &str, tracker: Arc<Mutex<MarketT
 
                     // update the tracker
                     let mut tracker = tracker.lock().await;
-                    tracker.update("Bybit", &parsed.data.s, bid_price, ask_price);
+                    tracker.update(exchange_names::BYBIT, &parsed.data.s, bid_price, ask_price);
                 }
             }
         }
     }
 }
-
-// logger::log_orderbook(&parsed);

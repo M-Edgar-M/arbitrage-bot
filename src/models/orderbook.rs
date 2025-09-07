@@ -64,7 +64,7 @@ impl Comparator {
         Self { threshold }
     }
 
-    /// Compare snapshots for a single symbol
+    /// Compare snapshots only across *different exchanges*
     pub fn compare(
         &self,
         snapshots: &[MarketSnapshot],
@@ -73,7 +73,13 @@ impl Comparator {
 
         for (i, a) in snapshots.iter().enumerate() {
             for b in &snapshots[i + 1..] {
-                let diff = (a.mid - b.ask).abs() / a.mid;
+                // ✅ Skip if both are from the same exchange
+                if a.exchange == b.exchange {
+                    continue;
+                }
+                // calculate difference (mid of a vs ask of b)
+                let diff = ((a.mid - b.ask).abs() / a.mid * 100000.0).round() / 100000.0;
+
                 if diff >= self.threshold {
                     results.push((a.clone(), b.clone(), diff));
                 }
@@ -113,8 +119,7 @@ impl CsvLogger {
     pub fn log(&self, a: &MarketSnapshot, b: &MarketSnapshot, diff: f64) {
         let mut file = OpenOptions::new().append(true).open(&self.path).unwrap();
 
-        writeln!(
-            file,
+        let line = format!(
             "{},{},{},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2}%,{}",
             a.symbol,
             a.exchange,
@@ -127,8 +132,12 @@ impl CsvLogger {
             b.mid,
             diff * 100.0,
             a.timestamp
-        )
-        .unwrap();
+        );
+
+        writeln!(file, "{}", line).unwrap();
+
+        // also print it to console
+        println!("{}", line);
     }
 }
 

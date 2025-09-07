@@ -1,6 +1,6 @@
 use crate::models::orderbook::{BinanceOrderBookMsg, OrderBookMsg};
 
-pub fn log_orderbook(msg: &OrderBookMsg) {
+pub fn _log_orderbook(msg: &OrderBookMsg) {
     if let (Some(bid), Some(ask)) = (msg.data.b.get(0), msg.data.a.get(0)) {
         let bid_price: f64 = bid[0].parse().unwrap_or(0.0);
         let bid_size: f64 = bid[1].parse().unwrap_or(0.0);
@@ -16,7 +16,7 @@ pub fn log_orderbook(msg: &OrderBookMsg) {
     }
 }
 
-pub fn log_binance_orderbook(msg: &BinanceOrderBookMsg) {
+pub fn _log_binance_orderbook(msg: &BinanceOrderBookMsg) {
     if let (Some(bid), Some(ask)) = (msg.bids.get(0), msg.asks.get(0)) {
         let bid_price: f64 = bid[0].parse().unwrap_or(0.0);
         let bid_size: f64 = bid[1].parse().unwrap_or(0.0);
