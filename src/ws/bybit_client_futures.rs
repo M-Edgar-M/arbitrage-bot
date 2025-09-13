@@ -1,17 +1,15 @@
-use std::{sync::Arc, time::Duration};
-
 use futures_util::{SinkExt, StreamExt};
 use serde_json::from_str;
-use tokio::{sync::Mutex, time::interval};
+use std::{sync::Arc, time::Duration};
+use tokio::{sync::Mutex, time};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::{
     constants::exchange_names,
-    // logger,
     models::orderbook::{MarketTracker, MarketType, OrderBookMsg},
 };
 
-pub async fn run_orderbook_stream_bybit(
+pub async fn run_orderbook_stream_bybit_futures(
     symbol: &str,
     tracker: Arc<Mutex<MarketTracker>>,
     url: &str,
@@ -19,10 +17,10 @@ pub async fn run_orderbook_stream_bybit(
     println!("🔌 Connecting to {}", url);
 
     let (ws_stream, _) = connect_async(url).await.expect("❌ Failed to connect");
-    println!("✅ WebSocket handshake completed");
+    println!("✅ WebSocket handshake completed for Futures");
 
     let (mut write, mut read) = ws_stream.split();
-
+    // The subscription message for Bybit V5 linear futures is the same format as spot
     let subscribe_msg = serde_json::json!({
         "op": "subscribe",
         "args": [format!("orderbook.1.{}", symbol)]
@@ -33,40 +31,35 @@ pub async fn run_orderbook_stream_bybit(
         .send(Message::Text(subscribe_msg.into()))
         .await
         .unwrap();
-    println!("📡 Subscribed to {} orderbook", symbol);
+    println!("📡 Subscribed to {} futures orderbook", symbol);
 
-    // Create a periodic interval for sending pings
-    let mut ping_interval = interval(Duration::from_secs(20));
+    let mut ping_interval = time::interval(Duration::from_secs(20));
 
-    // We'll use a `select` to handle both incoming messages and our ping timer
     loop {
         tokio::select! {
-            // This arm handles incoming messages from the WebSocket
             msg = read.next() => {
                 let msg = match msg {
                     Some(Ok(msg)) => msg,
                     _ => {
-                        println!("Connection closed or error.");
+                        println!("Connection closed or error. Reconnecting...");
                         break;
                     }
                 };
                 match msg {
                     Message::Text(txt) => {
-                        if let Ok(parsed) = from_str::<OrderBookMsg>(&txt) {
+                        if let Ok(mut parsed) = from_str::<OrderBookMsg>(&txt) {
+                            // Manually set the market type after deserialization
+                            parsed.data.market_type = MarketType::Futures;
                             if let (Some(bid), Some(ask)) = (parsed.data.b.get(0), parsed.data.a.get(0)) {
                                 let bid_price: f64 = bid[0].parse().unwrap_or(0.0);
                                 let ask_price: f64 = ask[0].parse().unwrap_or(0.0);
 
-
-                                let market_type: MarketType = MarketType::Spot;
-
-                                // update the tracker
+                                // Update the tracker with the market type
                                 let mut tracker = tracker.lock().await;
-                                tracker.update(exchange_names::BYBIT, &parsed.data.s, bid_price, ask_price, market_type);
+                                tracker.update(exchange_names::BYBIT, &parsed.data.s, bid_price, ask_price, parsed.data.market_type);
                             }
                         }
                     },
-                    // Handle ping frames sent by the server
                     Message::Ping(data) => {
                         println!("Ping received from server, sending pong back.");
                         if let Err(e) = write.send(Message::Pong(data)).await {
@@ -77,7 +70,6 @@ pub async fn run_orderbook_stream_bybit(
                     _ => {}
                 }
             },
-            // This arm handles our periodic client-side pings
             _ = ping_interval.tick() => {
                 println!("Sending client-side ping.");
                 if let Err(e) = write.send(Message::Ping(vec![].into())).await {

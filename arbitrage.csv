@@ -1,1 +1,1 @@
-symbol,exchange_a,exchange_b,bid_a,ask_a,mid_a,bid_b,ask_b,mid_b,diff_percent,timestamp
+symbol,exchange_a,exchange_b,bid_a,ask_a,mid_a,bid_b,ask_b,mid_b,diff_percent,market_type,timestamp

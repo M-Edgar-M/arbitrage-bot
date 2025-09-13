@@ -19,6 +19,8 @@ pub struct OrderBookData {
     pub a: Vec<[String; 2]>, // asks [price, size]
     pub u: u64,              // update ID
     pub seq: u64,            // sequence
+    #[serde(skip)]
+    pub market_type: MarketType,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -31,7 +33,48 @@ pub struct BinanceOrderBookMsg {
     pub bids: Vec<Vec<String>>,
     #[serde(rename = "a")]
     pub asks: Vec<Vec<String>>,
+    #[serde(skip)]
+    pub market_type: MarketType,
 }
+
+// Futures struct
+#[derive(Debug, Deserialize)]
+pub struct BinanceFuturesOrderBookMsg {
+    #[serde(rename = "e")]
+    pub event_type: String,
+    #[serde(rename = "E")]
+    pub event_time: u64,
+    #[serde(rename = "T")]
+    pub transaction_time: u64,
+    #[serde(rename = "s")]
+    pub symbol: String,
+    #[serde(rename = "U")]
+    pub first_update_id: u64,
+    #[serde(rename = "u")]
+    pub final_update_id: u64,
+    #[serde(rename = "pu")]
+    pub prev_final_update_id: u64,
+    #[serde(rename = "b")]
+    pub bids: Vec<Vec<String>>,
+    #[serde(rename = "a")]
+    pub asks: Vec<Vec<String>>,
+    #[serde(skip)]
+    pub market_type: MarketType,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub enum MarketType {
+    #[default] // required for Default trait
+    Spot,
+    Futures,
+}
+
+#[derive(Debug, Deserialize)]
+pub enum BinanceDepthUpdate {
+    Spot(BinanceOrderBookMsg),
+    Futures(BinanceFuturesOrderBookMsg),
+}
+
 #[derive(Debug, Clone)]
 pub struct MarketSnapshot {
     pub exchange: String,
@@ -40,10 +83,12 @@ pub struct MarketSnapshot {
     pub ask: f64,
     pub mid: f64,
     pub timestamp: i64,
+    // DETERMINE WHETHER WE NEED THIS OR NOT
+    market_type: MarketType,
 }
 
 impl MarketSnapshot {
-    pub fn new(exchange: &str, symbol: &str, bid: f64, ask: f64) -> Self {
+    pub fn new(exchange: &str, symbol: &str, bid: f64, ask: f64, market_type: MarketType) -> Self {
         let mid = (bid + ask) / 2.0;
         Self {
             exchange: exchange.to_string(),
@@ -52,6 +97,7 @@ impl MarketSnapshot {
             ask,
             mid,
             timestamp: Utc::now().timestamp(),
+            market_type,
         }
     }
 }
@@ -111,8 +157,16 @@ impl MarketTracker {
         }
     }
 
-    pub fn update(&mut self, exchange: &str, symbol: &str, bid: f64, ask: f64) {
-        let snapshot = MarketSnapshot::new(exchange, symbol, bid, ask);
+    pub fn update(
+        &mut self,
+        exchange: &str,
+        symbol: &str,
+        bid: f64,
+        ask: f64,
+        market_type: MarketType,
+    ) {
+        let snapshot: MarketSnapshot = MarketSnapshot::new(exchange, symbol, bid, ask, market_type);
+
         let entry: &mut Vec<MarketSnapshot> =
             self.data.entry(symbol.to_string()).or_insert_with(Vec::new);
         entry.push(snapshot);
