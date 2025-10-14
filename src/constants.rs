@@ -21,8 +21,10 @@ pub mod thresholds {
 
 pub mod urls {
     pub const BINANCE_URL_SPOT: &str = "wss://stream.binance.com:9443/ws"; // Spot
-    pub const BINANCE_URL_FUTURES: &str = "wss://fstream.binance.com/ws"; // Futures
+    pub const BINANCE_URL_FUTURES: &str = "wss://ws-fapi.binance.com/ws-fapi/v1"; // Futures
     pub const BYBIT_URL_SPOT: &str = "wss://stream.bybit.com/v5/public/spot"; // Spot
-    pub const BYBIT_URL_FUTURES: &str = "wss://stream.bybit.com/v5/public/linear";
+    pub const BYBIT_URL_FUTURES_LINEAR: &str = "wss://stream.bybit.com/v5/public/linear";
+    pub const BYBIT_URL_FUTURES: &str = "wss://stream.bybit.com/v5/trade";
+    pub const BYBIT_URL_FUTURES_TESTNET: &str = "wss://stream-testnet.bybit.com/v5/trade";
     // Futures
 }
