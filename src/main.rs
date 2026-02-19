@@ -6,24 +6,23 @@ use dotenv::dotenv;
 mod macros;
 
 use crate::{
-    binance::{
-        api::BinanceTradingClient, binance_exchange::BinanceExchange, order::BinanceOrderSide,
-    },
-    constants::{pairs, thresholds, urls},
-    models::orderbook::{Comparator, MarketSnapshot, MarketTracker, MarketType},
+    binance::{api::BinanceTradingClient, order::BinanceOrderSide},
+    constants::urls,
+    models::orderbook::MarketTracker,
     ws::{
         binance_client::{self, run_orderbook_stream_binance},
         // binance_client_multiplex::_run_orderbook_stream_binance,
         bybit_client_futures::run_orderbook_stream_bybit_futures,
-        client::run_orderbook_stream_bybit,
-        exchanges::OrderSide,
+        // client::run_orderbook_stream_bybit, // This was commented out in the main function, so it's unused.
+        // exchanges::OrderSide, // This was unused.
     },
 };
 
 mod binance;
 use binance::{
-    create_limit_order, BinanceAuth, BinanceOrder, NewOrderRespType, OrderType, TimeInForce,
-    WorkingType,
+    create_limit_order,
+    BinanceAuth, // BinanceAuth is used in main and test_limit_order_ws
+                 // BinanceOrder, NewOrderRespType, OrderType, TimeInForce, WorkingType, // These were unused.
 };
 
 mod constants;
@@ -33,28 +32,6 @@ mod ws;
 
 #[tokio::main]
 async fn main() {
-    // IMPLEMENTATION OF BINANCE SPOT AND FUTURES ORDER
-    let snapshots = vec![
-        MarketSnapshot {
-            exchange: "binance".into(),
-            symbol: "BTCUSDT".into(),
-            bid: 26000.0,
-            ask: 26010.0,
-            mid: 26005.0,
-            timestamp: chrono::Utc::now().timestamp_millis(),
-            // market_type: MarketType::FUTURES,
-        },
-        MarketSnapshot {
-            exchange: "other".into(),
-            symbol: "BTCUSDT".into(),
-            bid: 26100.0,
-            ask: 26120.0,
-            mid: 26110.0,
-            timestamp: chrono::Utc::now().timestamp_millis(),
-            // market_type: MarketType::Spot,
-        },
-    ];
-
     dotenv().ok();
 
     let api_key = env::var("API_KEY_BINANCE")
@@ -70,68 +47,81 @@ async fn main() {
         auth.api_key(),
         auth.api_secret()
     );
-    let ws_url = std::env::var("WS_TESTNET_URL");
+    // let ws_url = std::env::var("WS_TESTNET_URL");
+    // let ws_testnet: &'static str = "wss://ws-api.testnet.binance.vision/ws-api/v3";
 
-    let ws_testnet: &'static str = "wss://ws-api.testnet.binance.vision/ws-api/v3";
-    test_limit_order_ws(&auth).await.unwrap();
-    // test_market_order_ws(&auth, ws_testnet).await.unwrap();
+    // DISABLE TEST ORDER
+    // test_limit_order_ws(&auth).await.unwrap();
 
-    // let mut comparator: Comparator = Comparator::new(0.05);
-    // comparator
-    //     .execute_buy(&auth, ws_testnet, "BTCUSDT", 0.001)
-    //     .await
-    //     .unwrap();
+    let tracker = Arc::new(Mutex::new(MarketTracker::new(0.00001, "arbitrage.csv")));
 
-    // END OF THE BLOCK
-    let tracker = Arc::new(Mutex::new(MarketTracker::new(
-        // thresholds::LOW_THRESHOLD_1_PERCENT,
-        0.00001,
-        "arbitrage.csv",
-    )));
-    let tracker_clone_bybit = tracker.clone();
-    let tracker_clone_binance = tracker.clone();
-    let tracker_clone_eth_binance = tracker.clone();
+    let mut handles = vec![];
 
-    // BYBIT THREAD PICK THREAD BY SEPARATE FUNCTION
-    // tokio::spawn(async move {
-    //     run_orderbook_stream_bybit("WLFIUSDT", tracker_clone_bybit, urls::BYBIT_URL_SPOT).await;
-    // });
+    // --- BYBIT SPOT (DISABLED) ---
+    // let symbols_bybit_spot = vec!["WLFIUSDT", "ETHUSDT", "BTCUSDT"];
+    // for symbol in symbols_bybit_spot {
+    //     let tracker_clone = tracker.clone();
+    //     let symbol_owned = symbol.to_string();
+    //     handles.push(tokio::spawn(async move {
+    //         run_orderbook_stream_bybit(&symbol_owned, tracker_clone, urls::BYBIT_URL_SPOT).await;
+    //     }));
+    // }
 
-    // tokio::spawn(async move {
-    //     run_orderbook_stream_bybit(bybit_eth_usdt, tracker.clone()).await;
-    // });
-    // BINANCE THREAD PICK THREAD BY URL
-    // tokio::spawn(async move {
-    //     binance_client::run_orderbook_stream_binance(
-    //         pairs::WLFI_USDT_BINANCE,
-    //         tracker_clone_binance,
-    //         urls::BINANCE_URL_FUTURES,
-    //     )
-    //     .await;
-    // });
-    // BYBIT FUTURES
-    // tokio::spawn(async move {
-    //     run_orderbook_stream_bybit_futures(
-    //         pairs::WLFI_USDT_BYBIT,
-    //         tracker.clone(),
-    //         urls::BYBIT_URL_FUTURES,
-    //     )
-    //     .await;
-    // });
+    // --- BYBIT FUTURES ---
+    let symbols_bybit_futures = vec!["WLFIUSDT", "ETHUSDT", "BTCUSDT"];
+    for symbol in symbols_bybit_futures {
+        let tracker_clone = tracker.clone();
+        let symbol_owned = symbol.to_string();
+        handles.push(tokio::spawn(async move {
+            run_orderbook_stream_bybit_futures(
+                &symbol_owned,
+                tracker_clone,
+                urls::BYBIT_URL_FUTURES_LINEAR,
+            )
+            .await;
+        }));
+    }
 
-    // let symbols = vec![binance_eth_usdt, binance_btc_usdt];
-    // tokio::spawn(
-    //     async move { _run_orderbook_stream_binance(symbols, tracker_clone_binance).await },
-    // );
-
-    // tokio::spawn(async move {
-    //     binance_client::run_orderbook_stream_binance(binance_eth_usdt, tracker_clone_eth_binance)
+    // --- BINANCE SPOT (DISABLED) ---
+    // let symbols_binance_spot = vec!["wlfiusdt", "ethusdt", "btcusdt"];
+    // for symbol in symbols_binance_spot {
+    //     let tracker_clone = tracker.clone();
+    //     let symbol_owned = symbol.to_string();
+    //     handles.push(tokio::spawn(async move {
+    //         // Note: binance scanner might need uppercase or lowercase depending on implementation
+    //         // Looking at previous code, it seems to handle it or expect lowercase for streams?
+    //         // binance_client.rs: line 29: let stream_name = format!("{}@depth", symbol.to_lowercase());
+    //         // So casing here doesn't matter too much but let's stick to what we have.
+    //         binance_client::run_orderbook_stream_binance(
+    //             &symbol_owned,
+    //             tracker_clone,
+    //             urls::BINANCE_URL_SPOT,
+    //         )
     //         .await;
-    // });
+    //     }));
+    // }
 
-    // Keep the main thread alive
+    // --- BINANCE FUTURES ---
+    let symbols_binance_futures = vec!["wlfiusdt", "ethusdt", "btcusdt"];
+    for symbol in symbols_binance_futures {
+        let tracker_clone = tracker.clone();
+        let symbol_owned = symbol.to_string();
+        handles.push(tokio::spawn(async move {
+            binance_client::run_orderbook_stream_binance(
+                &symbol_owned,
+                tracker_clone,
+                urls::BINANCE_URL_FUTURES,
+            )
+            .await;
+        }));
+    }
+
+    println!("--- Scanning started for: WLFI, ETH, BTC on Binance & Bybit (Spot & Futures) ---");
+
+    // Keep the main thread alive and log heartbeat
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        println!("--- Scanning active: {} ---", chrono::Local::now());
     }
 }
 

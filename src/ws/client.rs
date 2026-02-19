@@ -68,7 +68,7 @@ pub async fn run_orderbook_stream_bybit(
                     },
                     // Handle ping frames sent by the server
                     Message::Ping(data) => {
-                        println!("Ping received from server, sending pong back.");
+                        // println!("Ping received from server, sending pong back.");
                         if let Err(e) = write.send(Message::Pong(data)).await {
                             eprintln!("Error sending pong: {:?}", e);
                             break;
@@ -79,7 +79,7 @@ pub async fn run_orderbook_stream_bybit(
             },
             // This arm handles our periodic client-side pings
             _ = ping_interval.tick() => {
-                println!("Sending client-side ping.");
+                // println!("Sending client-side ping.");
                 if let Err(e) = write.send(Message::Ping(vec![].into())).await {
                     eprintln!("Error sending ping: {:?}", e);
                     break;

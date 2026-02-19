@@ -26,7 +26,7 @@ pub async fn run_orderbook_stream_binance(
         let (mut write, mut read) = ws_stream.split();
 
         // Subscribe to depth stream
-        let stream_name = format!("{}@depth", symbol.to_lowercase());
+        let stream_name = format!("{}@depth5@100ms", symbol.to_lowercase());
         let subscribe_msg = serde_json::json!({
             "method": "SUBSCRIBE",
             "params": [stream_name],
@@ -64,32 +64,31 @@ pub async fn run_orderbook_stream_binance(
                     }
                 };
 
-                let depth_update =
-                    if parsed_json.get("T").is_some() && parsed_json.get("pu").is_some() {
-                        // Futures
-                        match serde_json::from_value::<BinanceFuturesOrderBookMsg>(parsed_json) {
-                            Ok(mut ob) => {
-                                ob.market_type = MarketType::Futures;
-                                BinanceDepthUpdate::Futures(ob)
-                            }
-                            Err(e) => {
-                                eprintln!("❌ Failed to parse Futures: {:?}", e);
-                                continue;
-                            }
+                let depth_update = if parsed_json.get("T").is_some() {
+                    // Futures
+                    match serde_json::from_value::<BinanceFuturesOrderBookMsg>(parsed_json) {
+                        Ok(mut ob) => {
+                            ob.market_type = MarketType::Futures;
+                            BinanceDepthUpdate::Futures(ob)
                         }
-                    } else {
-                        // Spot
-                        match serde_json::from_value::<BinanceOrderBookMsg>(parsed_json) {
-                            Ok(mut ob) => {
-                                ob.market_type = MarketType::Spot;
-                                BinanceDepthUpdate::Spot(ob)
-                            }
-                            Err(e) => {
-                                eprintln!("❌ Failed to parse Spot: {:?}", e);
-                                continue;
-                            }
+                        Err(e) => {
+                            eprintln!("❌ Failed to parse Futures: {:?}", e);
+                            continue;
                         }
-                    };
+                    }
+                } else {
+                    // Spot
+                    match serde_json::from_value::<BinanceOrderBookMsg>(parsed_json) {
+                        Ok(mut ob) => {
+                            ob.market_type = MarketType::Spot;
+                            BinanceDepthUpdate::Spot(ob)
+                        }
+                        Err(e) => {
+                            eprintln!("❌ Failed to parse Spot: {:?}", e);
+                            continue;
+                        }
+                    }
+                };
 
                 // Extract common bids/asks and update tracker
                 let (symbol, bids, asks, market_type) = match depth_update {

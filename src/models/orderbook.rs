@@ -56,7 +56,7 @@ pub struct BinanceFuturesOrderBookMsg {
     #[serde(rename = "u")]
     pub final_update_id: u64,
     #[serde(rename = "pu")]
-    pub prev_final_update_id: u64,
+    pub prev_final_update_id: Option<u64>,
     #[serde(rename = "b")]
     pub bids: Vec<Vec<String>>,
     #[serde(rename = "a")]
@@ -121,21 +121,31 @@ impl Comparator {
     /// Compare snapshots only across *different exchanges*
     pub fn compare(
         &mut self,
-        snapshots: &[MarketSnapshot],
+        snapshots: &HashMap<String, MarketSnapshot>,
     ) -> Vec<(MarketSnapshot, MarketSnapshot, f64)> {
         let mut results = Vec::new();
+        let exchanges: Vec<&String> = snapshots.keys().collect();
 
-        for (i, a) in snapshots.iter().enumerate() {
-            for b in &snapshots[i + 1..] {
-                // ✅ Skip if both are from the same exchange
-                if a.exchange == b.exchange {
-                    continue;
-                }
-                // calculate difference (mid of a vs ask of b)
-                let diff = ((a.mid - b.ask).abs() / a.mid * 100000.0).round() / 100000.0;
+        for (i, exchange_a) in exchanges.iter().enumerate() {
+            for exchange_b in &exchanges[i + 1..] {
+                let a = snapshots.get(*exchange_a).unwrap();
+                let b = snapshots.get(*exchange_b).unwrap();
 
-                if diff > self.biggest_diff && diff >= self.threshold {
-                    self.biggest_diff = diff;
+                // calculate difference (mid vs mid)
+                // Formula: |a - b| / ((a + b) / 2) * 100 ? No, standard is |a - b| / min(a,b) or just one of them.
+                // User's original code was: (a.mid - b.ask).abs() / a.mid
+                // Let's standardise to: abs(a.mid - b.mid) / a.mid
+                // But generally for arbitrage, we want (Bid_A - Ask_B) / Ask_B if we buy on B sell on A.
+                // However user asked just for "price difference".
+                // Let's stick closer to "spread":
+
+                let diff = ((a.mid - b.mid).abs() / a.mid * 100.0);
+
+                if diff >= self.threshold {
+                    // Only update biggest_diff if it's actually bigger
+                    if diff > self.biggest_diff {
+                        self.biggest_diff = diff;
+                    }
                     results.push((a.clone(), b.clone(), diff));
                 }
             }
@@ -143,129 +153,11 @@ impl Comparator {
 
         results
     }
-    pub async fn compare_and_execute(
-        &mut self,
-        snapshots: &[MarketSnapshot],
-        ws_url: &str,
-        quantity: f64,
-    ) -> anyhow::Result<Vec<(MarketSnapshot, MarketSnapshot, f64)>> {
-        let mut executed = Vec::new();
-
-        for (i, a) in snapshots.iter().enumerate() {
-            for b in &snapshots[i + 1..] {
-                if a.exchange == b.exchange {
-                    continue;
-                }
-
-                let diff = ((a.mid - b.ask).abs() / a.mid * 100000.0).round() / 100000.0;
-
-                if diff > self.biggest_diff && diff >= self.threshold {
-                    self.biggest_diff = diff;
-
-                    // ✅ Example execution condition
-                    // Suppose if a.mid < b.ask → BUY on a.exchange
-                    // For now just execute a BUY order on Binance testnet
-                    if a.exchange == "binance" {
-                        // let order: BinanceOrder = BinanceOrder {
-                        //     symbol: a.symbol.clone(),
-                        //     side: "BUY".into(),
-                        //     r#type: Some("MARKET".into()),
-                        //     price: None,
-                        //     quantity: Some(quantity.to_string()),
-                        //     timeInForce: None,
-                        // };
-
-                        // let resp = place_order(ws_url, auth, &order).await?;
-                        // println!(
-                        //     "🚀 Executed order: {}",
-                        //     serde_json::to_string_pretty(&resp)?
-                        // );
-
-                        // Subscribe to user stream after order
-                        // TODO: CHECK FOR THIS
-                        // let sub = subscribe_user_data(ws_url, auth).await?;
-                        // println!("🔔 Subscribed: {}", serde_json::to_string_pretty(&sub)?);
-                    }
-
-                    executed.push((a.clone(), b.clone(), diff));
-                }
-            }
-        }
-
-        Ok(executed)
-    }
-    pub async fn execute_buy(
-        &self,
-        // auth: &Auth,
-        ws_url: &str,
-        symbol: &str,
-        quantity: f64,
-    ) -> anyhow::Result<()> {
-        // let order = BinanceOrder {
-        //     symbol: symbol.to_string(),
-        //     side: "BUY".into(),
-        //     r#type: Some("MARKET".into()),
-        //     price: None,
-        //     quantity: Some(quantity.to_string()),
-        //     timeInForce: None,
-        // };
-
-        // println!("🎯 Executing BUY order: {} Qty: {}", symbol, quantity);
-
-        // let resp = place_order(ws_url, auth, &order).await?;
-        // println!(
-        //     "✅ Order executed successfully: {}",
-        //     serde_json::to_string_pretty(&resp)?
-        // );
-
-        // Subscribe to user stream to get order updates
-        // TODO: CHECK FOR THIS AVAILABILITY
-        // let sub = subscribe_user_data(ws_url, auth).await?;
-        // println!(
-        //     "🔔 Subscribed to user data: {}",
-        //     serde_json::to_string_pretty(&sub)?
-        // );
-
-        Ok(())
-    }
-
-    // You can also add a similar execute_sell function
-    pub async fn execute_sell(
-        &self,
-        // auth: &Auth,
-        ws_url: &str,
-        symbol: &str,
-        quantity: f64,
-    ) -> anyhow::Result<()> {
-        // let order = BinanceOrder {
-        //     symbol: symbol.to_string(),
-        //     side: "SELL".into(),
-        //     r#type: Some("MARKET".into()),
-        //     price: None,
-        //     quantity: Some(quantity.to_string()),
-        //     timeInForce: None,
-        // };
-
-        // println!("🎯 Executing SELL order: {} Qty: {}", symbol, quantity);
-
-        // let resp = place_order(ws_url, auth, &order).await?;
-        // println!(
-        //     "✅ Order executed successfully: {}",
-        //     serde_json::to_string_pretty(&resp)?
-        // );
-
-        // let sub = subscribe_user_data(ws_url, auth).await?;
-        // println!(
-        //     "🔔 Subscribed to user data: {}",
-        //     serde_json::to_string_pretty(&sub)?
-        // );
-
-        Ok(())
-    }
 }
 
 pub struct MarketTracker {
-    data: HashMap<String, Vec<MarketSnapshot>>,
+    // Symbol -> Exchange -> Snapshot
+    data: HashMap<String, HashMap<String, MarketSnapshot>>,
     comparator: Comparator,
     logger: CsvLogger,
 }
@@ -285,16 +177,20 @@ impl MarketTracker {
         symbol: &str,
         bid: f64,
         ask: f64,
-        market_type: MarketType,
+        _market_type: MarketType,
     ) {
-        let snapshot: MarketSnapshot = MarketSnapshot::new(exchange, symbol, bid, ask, market_type);
+        let snapshot = MarketSnapshot::new(exchange, symbol, bid, ask, _market_type);
 
-        let entry: &mut Vec<MarketSnapshot> =
-            self.data.entry(symbol.to_string()).or_insert_with(Vec::new);
-        entry.push(snapshot);
+        let symbol_entry = self
+            .data
+            .entry(symbol.to_string())
+            .or_insert_with(HashMap::new);
 
-        // Compare whenever we get a new update
-        let results: Vec<(MarketSnapshot, MarketSnapshot, f64)> = self.comparator.compare(entry);
+        // Insert or overwrite the snapshot for this exchange
+        symbol_entry.insert(exchange.to_string(), snapshot);
+
+        // Compare using the updated map for this symbol
+        let results = self.comparator.compare(symbol_entry);
         for (a, b, diff) in results {
             self.logger.log(&a, &b, diff);
         }
