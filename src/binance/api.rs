@@ -56,12 +56,13 @@ pub struct WsError {
 }
 
 /// A client for interacting with the Binance Futures WebSocket API.
-pub struct BinanceApiClient {
+#[derive(Debug)]
+pub struct BinanceTradingClient {
     auth: BinanceAuth,
     ws_stream: WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>,
 }
 
-impl BinanceApiClient {
+impl BinanceTradingClient {
     /// Creates a new BinanceApiClient instance and connects to the WS API.
     ///
     /// # Arguments

@@ -2,7 +2,10 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::logger::CsvLogger;
+use crate::{
+    // execution::binance::{place_order, subscribe_user_data},
+    logger::CsvLogger,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct OrderBookMsg {
@@ -84,7 +87,7 @@ pub struct MarketSnapshot {
     pub mid: f64,
     pub timestamp: i64,
     // DETERMINE WHETHER WE NEED THIS OR NOT
-    market_type: MarketType,
+    // market_type: MarketType,
 }
 
 impl MarketSnapshot {
@@ -97,7 +100,7 @@ impl MarketSnapshot {
             ask,
             mid,
             timestamp: Utc::now().timestamp(),
-            market_type,
+            // market_type,
         }
     }
 }
@@ -139,6 +142,125 @@ impl Comparator {
         }
 
         results
+    }
+    pub async fn compare_and_execute(
+        &mut self,
+        snapshots: &[MarketSnapshot],
+        ws_url: &str,
+        quantity: f64,
+    ) -> anyhow::Result<Vec<(MarketSnapshot, MarketSnapshot, f64)>> {
+        let mut executed = Vec::new();
+
+        for (i, a) in snapshots.iter().enumerate() {
+            for b in &snapshots[i + 1..] {
+                if a.exchange == b.exchange {
+                    continue;
+                }
+
+                let diff = ((a.mid - b.ask).abs() / a.mid * 100000.0).round() / 100000.0;
+
+                if diff > self.biggest_diff && diff >= self.threshold {
+                    self.biggest_diff = diff;
+
+                    // ✅ Example execution condition
+                    // Suppose if a.mid < b.ask → BUY on a.exchange
+                    // For now just execute a BUY order on Binance testnet
+                    if a.exchange == "binance" {
+                        // let order: BinanceOrder = BinanceOrder {
+                        //     symbol: a.symbol.clone(),
+                        //     side: "BUY".into(),
+                        //     r#type: Some("MARKET".into()),
+                        //     price: None,
+                        //     quantity: Some(quantity.to_string()),
+                        //     timeInForce: None,
+                        // };
+
+                        // let resp = place_order(ws_url, auth, &order).await?;
+                        // println!(
+                        //     "🚀 Executed order: {}",
+                        //     serde_json::to_string_pretty(&resp)?
+                        // );
+
+                        // Subscribe to user stream after order
+                        // TODO: CHECK FOR THIS
+                        // let sub = subscribe_user_data(ws_url, auth).await?;
+                        // println!("🔔 Subscribed: {}", serde_json::to_string_pretty(&sub)?);
+                    }
+
+                    executed.push((a.clone(), b.clone(), diff));
+                }
+            }
+        }
+
+        Ok(executed)
+    }
+    pub async fn execute_buy(
+        &self,
+        // auth: &Auth,
+        ws_url: &str,
+        symbol: &str,
+        quantity: f64,
+    ) -> anyhow::Result<()> {
+        // let order = BinanceOrder {
+        //     symbol: symbol.to_string(),
+        //     side: "BUY".into(),
+        //     r#type: Some("MARKET".into()),
+        //     price: None,
+        //     quantity: Some(quantity.to_string()),
+        //     timeInForce: None,
+        // };
+
+        // println!("🎯 Executing BUY order: {} Qty: {}", symbol, quantity);
+
+        // let resp = place_order(ws_url, auth, &order).await?;
+        // println!(
+        //     "✅ Order executed successfully: {}",
+        //     serde_json::to_string_pretty(&resp)?
+        // );
+
+        // Subscribe to user stream to get order updates
+        // TODO: CHECK FOR THIS AVAILABILITY
+        // let sub = subscribe_user_data(ws_url, auth).await?;
+        // println!(
+        //     "🔔 Subscribed to user data: {}",
+        //     serde_json::to_string_pretty(&sub)?
+        // );
+
+        Ok(())
+    }
+
+    // You can also add a similar execute_sell function
+    pub async fn execute_sell(
+        &self,
+        // auth: &Auth,
+        ws_url: &str,
+        symbol: &str,
+        quantity: f64,
+    ) -> anyhow::Result<()> {
+        // let order = BinanceOrder {
+        //     symbol: symbol.to_string(),
+        //     side: "SELL".into(),
+        //     r#type: Some("MARKET".into()),
+        //     price: None,
+        //     quantity: Some(quantity.to_string()),
+        //     timeInForce: None,
+        // };
+
+        // println!("🎯 Executing SELL order: {} Qty: {}", symbol, quantity);
+
+        // let resp = place_order(ws_url, auth, &order).await?;
+        // println!(
+        //     "✅ Order executed successfully: {}",
+        //     serde_json::to_string_pretty(&resp)?
+        // );
+
+        // let sub = subscribe_user_data(ws_url, auth).await?;
+        // println!(
+        //     "🔔 Subscribed to user data: {}",
+        //     serde_json::to_string_pretty(&sub)?
+        // );
+
+        Ok(())
     }
 }
 

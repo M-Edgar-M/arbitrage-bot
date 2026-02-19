@@ -5,6 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 type HmacSha256 = Hmac<Sha256>;
 
+#[derive(Debug)]
 pub struct BinanceAuth {
     api_key: String,
     api_secret: String,

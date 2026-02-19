@@ -1,18 +1,21 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::fmt;
+use std::time::Duration;
+use std::{fmt, time};
+
+use crate::ws::exchanges::ExchangeError;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum OrderSide {
+pub enum BinanceOrderSide {
     BUY,
     SELL,
 }
 
-impl fmt::Display for OrderSide {
+impl fmt::Display for BinanceOrderSide {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            OrderSide::BUY => write!(f, "BUY"),
-            OrderSide::SELL => write!(f, "SELL"),
+            BinanceOrderSide::BUY => write!(f, "BUY"),
+            BinanceOrderSide::SELL => write!(f, "SELL"),
         }
     }
 }
@@ -117,7 +120,7 @@ impl fmt::Display for NewOrderRespType {
 #[serde(rename_all = "camelCase")]
 pub struct BinanceOrder {
     pub symbol: String,
-    pub side: OrderSide,
+    pub side: BinanceOrderSide,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub position_side: Option<PositionSide>,
     #[serde(rename = "type")]
@@ -220,7 +223,7 @@ impl BinanceOrder {
 // Helper function to create a GTC Limit Order
 pub fn create_limit_order(
     symbol: String,
-    side: OrderSide,
+    side: BinanceOrderSide,
     quantity: f64,
     price: f64,
 ) -> BinanceOrder {

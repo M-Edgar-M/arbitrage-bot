@@ -6,6 +6,7 @@ crypto-bot/
     |── models/
     |   |── mod.rs
     |   |── orderbook.rs 
+    |   |── make_order.rs 
     ├── config.rs            # load API keys, symbols, etc.
     ├── ws/                  # WebSocket module
     │   ├── mod.rs           # public interface (connect, subscribe)
@@ -20,6 +21,7 @@ crypto-bot/
     │   └── example.rs       # example implementation (mid-price calc, moving avg, etc.)
     ├── execution/           # later: trade placement logic
     │   └── bybit.rs
+    |   |── binance.rs
     ├── storage/             # optional: save to DB/file for backtesting
     │   └── sqlite.rs
     ├── constants.rs
