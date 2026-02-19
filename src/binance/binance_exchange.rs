@@ -2,7 +2,7 @@ use crate::binance::api::BinanceTradingClient;
 use crate::binance::order::BinanceOrderSide;
 use crate::binance::{create_limit_order, BinanceOrder};
 use crate::ws::exchanges::{Exchange, ExchangeError, ExchangeId, OrderSide, PriceData};
-use futures_util::{SinkExt, StreamExt};
+use futures_util::StreamExt;
 use serde_json::Value;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
@@ -51,50 +51,15 @@ impl Exchange for BinanceExchange {
     }
 
     async fn subscribe_prices(&self, tx: Sender<PriceData>) {
-        loop {
-            println!("🔌 Connecting to Binance at {}", self.ws_url);
+        let (ws_tx, mut ws_rx) = tokio::sync::mpsc::channel(32);
 
-            let (ws_stream, _) = match connect_async(&self.ws_url).await {
-                Ok(res) => res,
-                Err(e) => {
-                    eprintln!("❌ Failed to connect to Binance: {:?}", e);
-                    time::sleep(Duration::from_secs(5)).await;
-                    continue;
-                }
-            };
+        let handler = crate::binance::ws_handler::WsHandler::new(self.ws_url.clone(), ws_tx);
+        handler.start().await;
 
-            println!("✅ Connected to Binance WebSocket");
-            let (_, mut read) = ws_stream.split();
-
-            // Note: Binance @depth streams don't require a separate subscribe message
-            // The subscription is part of the URL.
-            // Sending one can sometimes cause issues. I've commented it out.
-            // If your specific stream *does* need it, you can re-enable it.
-            /*
-            let (mut write, mut read) = ws_stream.split();
-            let subscribe_msg = serde_json::json!({
-                "method": "SUBSCRIBE",
-                "params": [format!("{}@depth", self.symbol.to_lowercase())],
-                "id": 1,
-            }).to_string();
-            if let Err(e) = write.send(Message::Text(subscribe_msg.into())).await {
-                 eprintln!("❌ Failed to subscribe: {:?}", e);
-                 continue;
-            }
-            println!("📡 Subscribed to Binance {} orderbook", self.symbol);
-            */
-
-            while let Some(msg) = read.next().await {
-                let msg = match msg {
-                    Ok(m) => m,
-                    Err(e) => {
-                        eprintln!("❌ Binance WS error: {:?}", e);
-                        break; // Break inner loop to reconnect
-                    }
-                };
-
-                if let Message::Text(ref txt) = msg {
-                    let parsed: Value = match serde_json::from_str(txt) {
+        while let Some(msg_result) = ws_rx.recv().await {
+            match msg_result {
+                Ok(Message::Text(txt)) => {
+                    let parsed: Value = match serde_json::from_str(&txt) {
                         Ok(v) => v,
                         Err(_) => continue, // Ignore non-JSON messages
                     };
@@ -123,25 +88,31 @@ impl Exchange for BinanceExchange {
 
                                 if tx.send(data).await.is_err() {
                                     eprintln!("⚠️ Price channel closed. Exiting Binance task.");
+                                    handler.shutdown(); // Stop the WS handler
                                     return; // Exit task completely
                                 }
                             }
                         }
                     }
                 }
-
-                if let Message::Ping(_data) = msg {
-                    // The underlying library often handles pongs automatically,
-                    // but manual handling is fine if needed.
-                    println!("[Binance] Received Ping, sending Pong");
-                    // Note: 'write' is not available if you don't split,
-                    // but auto-pong is usually sufficient.
+                Ok(Message::Ping(_))
+                | Ok(Message::Pong(_))
+                | Ok(Message::Binary(_))
+                | Ok(Message::Frame(_)) => {
+                    // Ignored or handled by tungstenite/handler
+                }
+                Ok(Message::Close(_)) => {
+                    println!("⚠️ Binance task received Close message");
+                }
+                Err(e) => {
+                    eprintln!("❌ WebSocket error from handler: {}", e);
+                    // The handler tries to reconnect indefinitely, but if it sends an error,
+                    // it might be critical or just a notification.
+                    // For now we just log.
                 }
             }
-
-            println!("🔁 Binance: Reconnecting in 5 seconds...");
-            time::sleep(Duration::from_secs(5)).await;
         }
+        println!("❌ Binance Exchange task finished (channel closed)");
     }
     async fn place_order_future(
         &self,

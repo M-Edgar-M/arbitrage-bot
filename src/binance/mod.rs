@@ -2,6 +2,7 @@ pub mod api;
 pub mod auth;
 pub mod binance_exchange;
 pub mod order;
+pub mod ws_handler;
 
 // Re-export the main types for easy access
 pub use auth::BinanceAuth;
