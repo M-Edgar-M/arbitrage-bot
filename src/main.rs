@@ -53,7 +53,7 @@ async fn main() {
     // DISABLE TEST ORDER
     // test_limit_order_ws(&auth).await.unwrap();
 
-    let tracker = Arc::new(Mutex::new(MarketTracker::new(0.00001, "arbitrage.csv")));
+    let tracker = Arc::new(Mutex::new(MarketTracker::new(10.0, "arbitrage.csv")));
 
     let mut handles = vec![];
 
@@ -68,7 +68,16 @@ async fn main() {
     // }
 
     // --- BYBIT FUTURES ---
-    let symbols_bybit_futures = vec!["WLFIUSDT", "ETHUSDT", "BTCUSDT"];
+    let symbols_bybit_futures = vec![
+        "WLFIUSDT",
+        "ETHUSDT",
+        "BTCUSDT",
+        "SOLUSDT",
+        "LINKUSDT",
+        "XRPUSDT",
+        "BNBUSDT",
+        "1000PEPEUSDT",
+    ];
     for symbol in symbols_bybit_futures {
         let tracker_clone = tracker.clone();
         let symbol_owned = symbol.to_string();
@@ -102,7 +111,16 @@ async fn main() {
     // }
 
     // --- BINANCE FUTURES ---
-    let symbols_binance_futures = vec!["wlfiusdt", "ethusdt", "btcusdt"];
+    let symbols_binance_futures = vec![
+        "wlfiusdt",
+        "ethusdt",
+        "btcusdt",
+        "solusdt",
+        "linkusdt",
+        "xrpusdt",
+        "bnbusdt",
+        "1000pepeusdt",
+    ];
     for symbol in symbols_binance_futures {
         let tracker_clone = tracker.clone();
         let symbol_owned = symbol.to_string();
@@ -116,7 +134,7 @@ async fn main() {
         }));
     }
 
-    println!("--- Scanning started for: WLFI, ETH, BTC on Binance & Bybit (Spot & Futures) ---");
+    println!("--- Scanning started for: WLFI, ETH, BTC, SOL, LINK, XRP, BNB, 1000PEPE on Binance & Bybit (Spot & Futures) ---");
 
     // Keep the main thread alive and log heartbeat
     loop {
