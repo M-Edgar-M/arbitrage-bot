@@ -98,7 +98,7 @@ pub async fn run_orderbook_stream_binance(
                     }
                 };
 
-                if let (Some(bid), Some(ask)) = (bids.get(0), asks.get(0)) {
+                if let (Some(bid), Some(ask)) = (bids.first(), asks.first()) {
                     let bid_price: f64 = bid[0].parse().unwrap_or(0.0);
                     let ask_price: f64 = ask[0].parse().unwrap_or(0.0);
 

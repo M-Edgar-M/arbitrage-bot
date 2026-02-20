@@ -53,7 +53,7 @@ pub async fn run_orderbook_stream_bybit(
                 match msg {
                     Message::Text(txt) => {
                         if let Ok(parsed) = from_str::<OrderBookMsg>(&txt) {
-                            if let (Some(bid), Some(ask)) = (parsed.data.b.get(0), parsed.data.a.get(0)) {
+                            if let (Some(bid), Some(ask)) = (parsed.data.b.first(), parsed.data.a.first()) {
                                 let bid_price: f64 = bid[0].parse().unwrap_or(0.0);
                                 let ask_price: f64 = ask[0].parse().unwrap_or(0.0);
 
