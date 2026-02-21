@@ -10,7 +10,7 @@ futures-util = "0.3.31"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.143"
 tokio = { version = "1.47.1", features = ["macros", "rt-multi-thread", "sync", "time", "net"] }
-tokio-tungstenite = { version = "0.27.0", features = ["native-tls"] }
+tokio-tungstenite = { version = "0.27.0", features = ["rustls-tls-webpki-roots"] }
 hex = "0.4"
 hmac = "0.12"
 sha2 = "0.10"
@@ -19,5 +19,12 @@ dotenv = "0.15"
 uuid = { version = "1.4", features = ["v4"] }
 async-trait = "0.1.89"
 rand = "0.8.5"
-reqwest = { version = "0.13.2", features = ["json"] }
+reqwest = { version = "0.13.2", default-features = false, features = ["rustls", "json"] }
 log = "0.4.29"
+
+[profile.release]
+opt-level = "z"  # Optimize for size
+lto = true       # Enable Link-Time Optimization
+codegen-units = 1 # Reduce parallel code generation units for better optimization
+panic = "abort"  # Abort on panic instead of unwinding
+strip = true     # Strip symbols from binary
