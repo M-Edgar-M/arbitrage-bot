@@ -19,6 +19,17 @@ pub mod thresholds {
     pub const LOW_THRESHOLD_1_PERCENT: f64 = 0.01;
 }
 
+pub mod notifications {
+    /// Minimum diff percentage to trigger a Telegram alert (5%).
+    pub const DIFF_THRESHOLD: f64 = 5.0;
+    /// Minimum percentage-point increase over the last notified diff to re-alert.
+    pub const RE_ALERT_DELTA: f64 = 1.0;
+    /// Minimum seconds between any two Telegram API calls.
+    pub const COOLDOWN_SECS: u64 = 120;
+    /// Interval in seconds to wipe notification state (24 hours).
+    pub const STATE_RESET_SECS: u64 = 86_400;
+}
+
 pub mod urls {
     pub const BINANCE_URL_SPOT: &str = "wss://stream.binance.com:9443/ws"; // Spot
     pub const BINANCE_URL_FUTURES: &str = "wss://fstream.binance.com/ws"; // Futures

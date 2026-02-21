@@ -7,27 +7,23 @@ mod macros;
 
 use crate::{
     binance::{api::BinanceTradingClient, order::BinanceOrderSide},
-    constants::urls,
+    constants::{notifications as notif_const, urls},
     models::orderbook::MarketTracker,
+    notifications::{alert_gate::AlertGate, telegram::TelegramNotifier},
     ws::{
         binance_client::{self, run_orderbook_stream_binance},
         // binance_client_multiplex::_run_orderbook_stream_binance,
         bybit_client_futures::run_orderbook_stream_bybit_futures,
-        // client::run_orderbook_stream_bybit, // This was commented out in the main function, so it's unused.
-        // exchanges::OrderSide, // This was unused.
     },
 };
 
 mod binance;
-use binance::{
-    create_limit_order,
-    BinanceAuth, // BinanceAuth is used in main and test_limit_order_ws
-                 // BinanceOrder, NewOrderRespType, OrderType, TimeInForce, WorkingType, // These were unused.
-};
+use binance::{create_limit_order, BinanceAuth};
 
 mod constants;
 mod logger;
 mod models;
+pub mod notifications;
 mod ws;
 
 #[tokio::main]
@@ -47,13 +43,41 @@ async fn main() {
         auth.api_key(),
         auth.api_secret()
     );
-    // let ws_url = std::env::var("WS_TESTNET_URL");
-    // let ws_testnet: &'static str = "wss://ws-api.testnet.binance.vision/ws-api/v3";
 
-    // DISABLE TEST ORDER
-    // test_limit_order_ws(&auth).await.unwrap();
+    // ── Telegram Notifier ────────────────────────────────────────────
+    let telegram_tx = TelegramNotifier::spawn();
 
-    let tracker = Arc::new(Mutex::new(MarketTracker::new(10.0, "arbitrage.csv")));
+    // ── Alert Gate (dedup + cooldown) ────────────────────────────────
+    let alert_gate = AlertGate::new(
+        notif_const::DIFF_THRESHOLD,
+        notif_const::RE_ALERT_DELTA,
+        notif_const::COOLDOWN_SECS,
+    );
+
+    // ── Market Tracker ───────────────────────────────────────────────
+    // The comparator threshold is DIFF_THRESHOLD / 100 because the
+    // comparator works with a raw ratio multiplied by 100 internally.
+    let tracker = Arc::new(Mutex::new(MarketTracker::new(
+        notif_const::DIFF_THRESHOLD / 100.0,
+        "arbitrage.csv",
+        telegram_tx,
+        alert_gate,
+    )));
+
+    // ── 24-hour state reset scheduler ────────────────────────────────
+    {
+        let tracker_reset = tracker.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(
+                notif_const::STATE_RESET_SECS,
+            ));
+            interval.tick().await; // first tick fires immediately — skip it
+            loop {
+                interval.tick().await;
+                tracker_reset.lock().await.alert_gate.reset();
+            }
+        });
+    }
 
     let mut handles = vec![];
 

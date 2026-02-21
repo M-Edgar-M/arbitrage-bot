@@ -1,10 +1,11 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tokio::sync::mpsc;
 
 use crate::{
-    // execution::binance::{place_order, subscribe_user_data},
     logger::CsvLogger,
+    notifications::{alert_gate::AlertGate, telegram::AppAlert},
 };
 
 #[derive(Debug, Deserialize)]
@@ -160,14 +161,23 @@ pub struct MarketTracker {
     data: HashMap<String, HashMap<String, MarketSnapshot>>,
     comparator: Comparator,
     logger: CsvLogger,
+    pub alert_gate: AlertGate,
+    telegram_tx: Option<mpsc::Sender<AppAlert>>,
 }
 
 impl MarketTracker {
-    pub fn new(threshold: f64, log_path: &str) -> Self {
+    pub fn new(
+        threshold: f64,
+        log_path: &str,
+        telegram_tx: Option<mpsc::Sender<AppAlert>>,
+        alert_gate: AlertGate,
+    ) -> Self {
         Self {
             data: HashMap::new(),
             comparator: Comparator::new(threshold),
             logger: CsvLogger::new(log_path),
+            alert_gate,
+            telegram_tx,
         }
     }
 
@@ -191,8 +201,28 @@ impl MarketTracker {
 
         // Compare using the updated map for this symbol
         let results = self.comparator.compare(symbol_entry);
-        for (a, b, diff) in results {
-            self.logger.log(&a, &b, diff);
+        // CSV logging disabled — using Telegram notifications instead
+        // for (a, b, diff) in &results {
+        //     self.logger.log(a, b, *diff);
+        // }
+
+        // ── Telegram alerts ──────────────────────────────────────────
+        if let Some(ref tx) = self.telegram_tx {
+            for (a, b, diff) in results {
+                self.alert_gate.maybe_send(
+                    tx,
+                    &a.symbol,
+                    &a.exchange,
+                    &b.exchange,
+                    a.bid,
+                    a.ask,
+                    a.mid,
+                    b.bid,
+                    b.ask,
+                    b.mid,
+                    diff,
+                );
+            }
         }
     }
 }
